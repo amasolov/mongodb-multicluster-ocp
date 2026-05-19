@@ -227,12 +227,43 @@ For clients outside the cluster network (e.g. corporate workstations, CI/CD pipe
 
 **Reference:** [MongoDB Connection String URI Format](https://www.mongodb.com/docs/manual/reference/connection-string/)
 
-### Read preference for geographic locality
+### Simplified connection via DNS SRV records (mongodb+srv)
 
-Applications can use [read preference tags](https://www.mongodb.com/docs/manual/core/read-preference/) to route reads to the nearest data centre:
+Instead of listing every member hostname in the connection string, MongoDB supports `mongodb+srv://` connection strings backed by [DNS SRV records](https://www.mongodb.com/docs/manual/reference/connection-string/#dns-seed-list-connection-format). With this approach, clients connect using a single hostname:
 
 ```
-mongodb://<connection>/?readPreference=secondaryPreferred&readPreferenceTags=dc:cluster1&readPreferenceTags=dc:cluster2
+mongodb+srv://<user>:<password>@mongodb-rs.example.com/?authSource=admin
+```
+
+The MongoDB driver performs an SRV lookup on `_mongodb._tcp.mongodb-rs.example.com` to discover all replica set members, and a TXT lookup for default connection options (e.g. `replicaSet=mongodb-rs&authSource=admin`).
+
+**To enable this**, create the following DNS records in the shared domain:
+
+| Type | Name | Value |
+|---|---|---|
+| SRV | `_mongodb._tcp.mongodb-rs.example.com` | `0 0 27017 mongodb-rs-0-0.<cluster1-domain>` |
+| SRV | `_mongodb._tcp.mongodb-rs.example.com` | `0 0 27017 mongodb-rs-0-1.<cluster1-domain>` |
+| SRV | `_mongodb._tcp.mongodb-rs.example.com` | `0 0 27017 mongodb-rs-1-0.<cluster2-domain>` |
+| SRV | `_mongodb._tcp.mongodb-rs.example.com` | `0 0 27017 mongodb-rs-1-1.<cluster2-domain>` |
+| SRV | `_mongodb._tcp.mongodb-rs.example.com` | `0 0 27017 mongodb-rs-2-0.<cluster3-domain>` |
+| TXT | `mongodb-rs.example.com` | `replicaSet=mongodb-rs&authSource=admin` |
+
+**Benefits:**
+- Client connection strings never change, even if members are added, removed, or migrate between clusters
+- Failover is completely transparent to clients
+- Application configuration is simplified (one hostname instead of five)
+- TLS and read preference options can be set centrally via the TXT record
+
+**Note:** The SRV records can be created in any DNS zone accessible to the clients. They do not need to be in the same zones as the per-pod A records. This makes it straightforward to present a single stable entry point (e.g. `mongodb-rs.corp.example.com`) regardless of which clusters host the members.
+
+**Reference:** [DNS Seed List Connection Format](https://www.mongodb.com/docs/manual/reference/connection-string/#dns-seed-list-connection-format)
+
+### Read preference for geographic locality
+
+Applications can use [read preference tags](https://www.mongodb.com/docs/manual/core/read-preference/) to route reads to the nearest data centre. This works with both `mongodb://` and `mongodb+srv://` connection strings:
+
+```
+mongodb+srv://<user>:<password>@mongodb-rs.example.com/?readPreference=secondaryPreferred&readPreferenceTags=dc:cluster1&readPreferenceTags=dc:cluster2
 ```
 
 This reads from DC1 secondaries first, falls back to DC2, and only reads from the primary if no secondaries are available.
