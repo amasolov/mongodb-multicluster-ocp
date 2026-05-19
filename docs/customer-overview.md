@@ -347,6 +347,39 @@ All cross-cluster traffic flows over the corporate WAN via LoadBalancer external
 
 ---
 
+## Ops Manager Deployment: Current State and Production Recommendation
+
+### Current PoC state
+
+In this proof of concept, Ops Manager runs as a **single instance on Cluster 1 only**. This was a deliberate simplification to focus on validating the cross-cluster data replica set. The Ops Manager multi-cluster topology (active/standby with distributed AppDB) was planned but not fully validated due to issues encountered with cross-cluster TLS trust during operator bootstrap.
+
+### Impact if Cluster 1 is lost
+
+The MongoDB data replica set **continues to operate normally** if Cluster 1 goes down. Failover to Cluster 2 proceeds as tested. However, Ops Manager itself becomes unavailable until Cluster 1 recovers. During that time:
+
+- The data replica set keeps running independently (it does not depend on Ops Manager at runtime)
+- Monitoring dashboards and alerting are paused
+- Backup scheduling and snapshot creation are paused
+- No new deployments or automation config changes can be made
+
+**Data availability is not affected.** Only management-plane operations are impacted.
+
+### Production recommendation
+
+For production, Ops Manager should be deployed in multi-cluster mode:
+
+- **Active instance** on DC1, **standby instance** on DC2 (automatic promotion if DC1 is lost)
+- **Application Database** spread 1+1+1 across all three sites
+- **Backup daemons** on both DC1 and DC2
+
+This ensures the management plane remains available even during a full site failure. The MCK operator supports this topology via the `MongoDBOpsManager` CR with `topology: MultiCluster`. The Ansible roles in the repository already contain templates for this configuration, though it was not end-to-end validated in the PoC.
+
+**References:**
+- [Ops Manager Resource Specification](https://www.mongodb.com/docs/kubernetes/current/reference/k8s-operator-om-specification/)
+- [Deploy Ops Manager in Multi-Cluster Mode](https://www.mongodb.com/docs/kubernetes/current/tutorial/deploy-om-multi-kubernetes/)
+
+---
+
 ## Known Limitations and Workarounds
 
 These were discovered during the PoC and are documented as issues to be aware of during production deployment.
