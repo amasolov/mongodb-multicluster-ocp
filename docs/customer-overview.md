@@ -351,6 +351,7 @@ The complete source code, Kustomize manifests, bootstrap scripts, and Ansible pl
 - [Deploy Multi-Cluster Without a Service Mesh](https://www.mongodb.com/docs/kubernetes/current/reference-architectures/multi-cluster-no-mesh/deploy-operator-no-mesh/)
 - [Configure ExternalDNS for Multi-Cluster](https://www.mongodb.com/docs/kubernetes/current/reference-architectures/multi-cluster-no-mesh/external-dns-no-mesh/)
 - [MongoDB Ops Manager Architecture](https://www.mongodb.com/docs/ops-manager/current/core/system-overview/)
+- [Ops Manager API Reference](https://www.mongodb.com/docs/ops-manager/current/reference/api/)
 - [Ops Manager Backup Overview](https://www.mongodb.com/docs/ops-manager/current/core/backup-overview/)
 - [Geographically Distributed Replica Sets](https://www.mongodb.com/docs/manual/tutorial/deploy-geographically-distributed-replica-set/)
 - [Replica Set Elections](https://www.mongodb.com/docs/manual/core/replica-set-elections/)
