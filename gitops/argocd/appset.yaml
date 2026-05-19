@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: mongodb-multicluster
+  namespace: openshift-gitops
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: cluster1
+            url: https://api.cluster1.example.com:6443
+            role: central
+          - cluster: cluster2
+            url: https://api.cluster2.example.com:6443
+            role: member
+          - cluster: cluster3
+            url: https://api.cluster3.example.com:6443
+            role: member
+  template:
+    metadata:
+      name: "mongodb-{{cluster}}"
+    spec:
+      project: mongodb-hadr
+      source:
+        repoURL: https://github.com/ORGANISATION/mongodb-multicluster-ocp.git
+        targetRevision: main
+        path: "gitops/overlays/{{cluster}}"
+      destination:
+        server: "{{url}}"
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: false
+        syncOptions:
+          - CreateNamespace=true
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 3m
+      ignoreDifferences:
+        - group: ""
+          kind: Secret
+          jsonPointers:
+            - /data

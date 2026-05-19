@@ -1,0 +1,12 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ mck_operator_name }}
+  namespace: {{ mck_operator_install_namespace }}
+spec:
+  channel: {{ mck_operator_channel }}
+  installPlanApproval: Automatic
+  name: {{ mck_operator_name }}
+  source: {{ mck_operator_source }}
+  sourceNamespace: {{ mck_operator_source_namespace }}
+  startingCSV: {{ mck_operator_csv }}

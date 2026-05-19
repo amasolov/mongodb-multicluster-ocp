@@ -1,0 +1,69 @@
+apiVersion: mongodb.com/v1
+kind: MongoDBMultiCluster
+metadata:
+  name: {{ mongodb_rs_name }}
+  namespace: {{ mongodb_namespace }}
+spec:
+  topology: MultiCluster
+  type: ReplicaSet
+  version: "{{ mongodb_version }}"
+  persistent: true
+  duplicateServiceObjects: false
+  credentials: {{ ops_manager_api_secret_name }}
+  opsManager:
+    configMapRef:
+      name: {{ ops_manager_configmap_name }}
+  clusterSpecList:
+{% for host in groups['clusters'] %}
+    - clusterName: {{ hostvars[host].cluster_label }}
+      members: {{ hostvars[host].mongodb_members }}
+      memberConfig:
+{% for i in range(hostvars[host].mongodb_members | int) %}
+        - priority: "{{ hostvars[host].mongodb_member_priority }}"
+          votes: 1
+{% if hostvars[host].cluster_role == 'arbiter' %}
+          tags:
+            role: arbiter
+{% else %}
+          tags:
+            dc: {{ hostvars[host].cluster_label }}
+{% endif %}
+{% endfor %}
+      externalAccess:
+        externalDomain: "{{ hostvars[host].external_domain }}"
+        externalService:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+            external-dns.alpha.kubernetes.io/hostname: "{mongodProcessFQDN}"
+          spec:
+            type: LoadBalancer
+      podSpec:
+        persistence:
+          single:
+            storageClass: {{ hostvars[host].get('storage_class', storage_class) }}
+            storage: {{ data_storage_size }}
+        podTemplate:
+          spec:
+{% if hostvars[host].cluster_role != 'arbiter' %}
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app: {{ mongodb_rs_name }}-svc
+                    topologyKey: kubernetes.io/hostname
+{% endif %}
+            containers:
+              - name: mongod
+                resources:
+                  requests:
+                    cpu: {{ hostvars[host].get('mongod_cpu_request', mongod_cpu_request) }}
+                    memory: {{ hostvars[host].get('mongod_memory_request', mongod_memory_request) }}
+                  limits:
+                    cpu: {{ hostvars[host].get('mongod_cpu_limit', mongod_cpu_limit) }}
+                    memory: {{ hostvars[host].get('mongod_memory_limit', mongod_memory_limit) }}
+{% endfor %}
+  security:
+    authentication:
+      enabled: true
+      modes: ["SCRAM"]

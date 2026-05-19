@@ -1,0 +1,43 @@
+---
+- name: Check if MCK operator is already installed
+  command: >
+    {{ oc_cmd }} get csv {{ mck_operator_csv }}
+    -n {{ mck_operator_install_namespace }}
+    -o jsonpath='{.status.phase}'
+  register: csv_check
+  changed_when: false
+  failed_when: false
+
+- name: Install MCK operator
+  when: csv_check.rc != 0 or csv_check.stdout != "Succeeded"
+  block:
+    - name: Apply Subscription
+      command: >
+        {{ oc_cmd }} apply -f -
+      args:
+        stdin: "{{ lookup('template', 'subscription.yml.j2') }}"
+      changed_when: true
+
+    - name: Wait for CSV to reach Succeeded
+      command: >
+        {{ oc_cmd }} get csv {{ mck_operator_csv }}
+        -n {{ mck_operator_install_namespace }}
+        -o jsonpath='{.status.phase}'
+      register: csv_status
+      until: csv_status.stdout == "Succeeded"
+      retries: 40
+      delay: "{{ poll_interval }}"
+      changed_when: false
+
+- name: Verify MCK operator is running
+  command: >
+    {{ oc_cmd }} get deployment mongodb-kubernetes-operator
+    -n {{ mck_operator_install_namespace }}
+    -o jsonpath='{.status.readyReplicas}'
+  register: operator_ready
+  changed_when: false
+  failed_when: operator_ready.stdout | int < 1
+
+- name: MCK operator status
+  debug:
+    msg: "MCK operator {{ mck_operator_version }} is running on {{ cluster_label }} ({{ cluster_api }})"

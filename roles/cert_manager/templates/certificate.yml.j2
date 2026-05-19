@@ -1,0 +1,28 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ tls_cert_prefix }}-{{ cert_name }}
+  namespace: {{ target_namespace }}
+spec:
+  secretName: {{ tls_cert_prefix }}-{{ cert_name }}-cert
+  duration: "{{ tls_cert_duration }}"
+  renewBefore: "{{ tls_cert_renew_before }}"
+  subject:
+    organizations:
+      - MongoDB
+  commonName: "*.{{ target_namespace }}.svc.cluster.local"
+  dnsNames:
+    - "*.{{ target_namespace }}.svc.cluster.local"
+    - "*.{{ target_namespace }}.svc"
+    - "*.{{ target_namespace }}"
+{% for host in groups['clusters'] %}
+{% if hostvars[host].get('external_domain', '') != '' %}
+    - "*.{{ hostvars[host].external_domain }}"
+{% endif %}
+{% endfor %}
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: mongodb-issuer
+    kind: Issuer

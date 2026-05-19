@@ -1,0 +1,5 @@
+---
+- name: Restart Ops Manager
+  command: >
+    {{ oc_cmd }} delete pod -l app={{ ops_manager_name }}-svc
+    -n {{ ops_manager_namespace }}

@@ -1,0 +1,5 @@
+---
+- name: Restart MongoDB pods
+  command: >
+    {{ oc_cmd }} delete pod -l app={{ mongodb_rs_name }}-svc
+    -n {{ mongodb_namespace }}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ops-manager-api-key
+  namespace: mongodb-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+type: Opaque
+stringData:
+  publicKey: "PLACEHOLDER"
+  privateKey: "PLACEHOLDER"

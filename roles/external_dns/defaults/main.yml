@@ -1,0 +1,5 @@
+---
+external_dns_namespace: external-dns
+external_dns_image: registry.k8s.io/external-dns/external-dns:v0.16.1
+external_dns_poll_interval: 10s
+external_dns_policy: upsert-only

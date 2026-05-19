@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: mongodb-hadr
+  namespace: openshift-gitops
+spec:
+  description: Multi-cluster MongoDB HA/DR deployment
+  sourceRepos:
+    - "https://github.com/ORGANISATION/mongodb-multicluster-ocp.git"
+  destinations:
+    - namespace: mongodb-operator
+      server: "*"
+    - namespace: mongodb-ops-manager
+      server: "*"
+    - namespace: mongodb-data
+      server: "*"
+    - namespace: external-dns
+      server: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: "*"
+    - group: rbac.authorization.k8s.io
+      kind: "*"
+    - group: cert-manager.io
+      kind: "*"
+    - group: route.openshift.io
+      kind: "*"
+    - group: mongodb.com
+      kind: "*"

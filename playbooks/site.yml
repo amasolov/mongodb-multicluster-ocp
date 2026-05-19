@@ -1,0 +1,46 @@
+---
+- name: Deploy Multi-Cluster MongoDB HA/DR
+  hosts: clusters
+  gather_facts: false
+  serial: "100%"
+
+  pre_tasks:
+    - name: Authenticate to cluster
+      command: >
+        {{ oc_cmd }} login {{ cluster_api }}
+        --username={{ cluster_user }}
+        --password={{ cluster_password }}
+        --insecure-skip-tls-verify=true
+      no_log: true
+      changed_when: false
+
+    - name: Verify cluster connectivity
+      command: "{{ oc_cmd }} whoami"
+      changed_when: false
+      register: whoami_result
+
+    - name: Show cluster identity
+      debug:
+        msg: "Connected to {{ cluster_api }} as {{ whoami_result.stdout }}"
+
+    - name: Detect default StorageClass if not set
+      command: >
+        {{ oc_cmd }} get sc -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}'
+      register: detected_sc
+      changed_when: false
+      when: storage_class is not defined or storage_class == ""
+
+    - name: Set storage_class from detected value
+      set_fact:
+        storage_class: "{{ detected_sc.stdout }}"
+      when: detected_sc is not skipped and detected_sc.stdout != ""
+
+  roles:
+    - role: mck_operator
+    - role: cert_manager
+    - role: external_dns
+      when: external_domain is defined and external_domain != ""
+    - role: ops_manager
+      when: ops_manager_replicas | int > 0 or ops_manager_appdb_members | int > 0
+    - role: mongodb_multicluster
+      run_once: true

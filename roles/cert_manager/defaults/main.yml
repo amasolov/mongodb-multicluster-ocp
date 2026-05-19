@@ -1,0 +1,11 @@
+---
+cert_manager_namespace: "{{ cert_manager_namespace | default('cert-manager') }}"
+cert_manager_operator_name: openshift-cert-manager-operator
+cert_manager_channel: stable-v1
+cert_manager_source: redhat-operators
+cert_manager_source_namespace: "{{ operator_catalog_namespace }}"
+
+tls_ca_common_name: "MongoDB Multi-Cluster CA"
+tls_ca_duration: "87600h"
+tls_cert_duration: "8760h"
+tls_cert_renew_before: "720h"

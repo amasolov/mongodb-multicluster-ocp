@@ -1,0 +1,24 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mongodb-server-cert
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  secretName: mongodb-server-cert
+  duration: "8760h"
+  renewBefore: "720h"
+  subject:
+    organizations:
+      - MongoDB
+  commonName: "*.mongodb-data.svc.cluster.local"
+  dnsNames:
+    - "*.mongodb-data.svc.cluster.local"
+    - "*.mongodb-data.svc"
+    - "*.mongodb-data"
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: mongodb-issuer
+    kind: Issuer

@@ -1,0 +1,209 @@
+---
+- name: Test MongoDB Multi-Cluster Failover
+  hosts: clusters
+  gather_facts: false
+  vars:
+    target_cluster: "{{ failover_target | default('cluster2') }}"
+    mongodb_image: "mongodb/mongodb-enterprise-server:{{ mongodb_version | replace('-ent', '') }}-ubi9"
+    test_db: failover_test
+    test_collection: events
+
+  pre_tasks:
+    - name: Authenticate to all clusters
+      command: >
+        {{ oc_cmd }} login {{ cluster_api }}
+        --username={{ cluster_user }}
+        --password={{ cluster_password }}
+        --insecure-skip-tls-verify=true
+      no_log: true
+      changed_when: false
+
+  tasks:
+    # --- Phase 1: Pre-failover health check ---
+    - name: "Phase 1: Verify replica set is healthy"
+      block:
+        - name: Check MongoDBMultiCluster status
+          command: >
+            {{ oc_cmd }} get mongodbmulticluster {{ mongodb_rs_name }}
+            -n {{ mongodb_namespace }}
+            -o jsonpath='{.status.phase}'
+          register: pre_status
+          changed_when: false
+
+        - name: Assert replica set is Running
+          assert:
+            that: pre_status.stdout == "Running"
+            fail_msg: "Replica set is not Running ({{ pre_status.stdout }}). Aborting failover test."
+
+        - name: Count pods across all clusters
+          command: >
+            {{ oc_cmd }} get pods -l app={{ mongodb_rs_name }}-svc
+            -n {{ mongodb_namespace }} --no-headers
+          register: pod_count
+          changed_when: false
+
+        - name: Display pre-failover pod distribution
+          debug:
+            msg: |
+              Pre-failover status on {{ cluster_label }}:
+              {{ pod_count.stdout }}
+      tags: [preflight]
+
+    # --- Phase 2: Write test data (run once from primary cluster) ---
+    - name: "Phase 2: Write test data before failover"
+      run_once: true
+      block:
+        - name: Insert test document via mongosh
+          command: >
+            {{ oc_cmd }} exec {{ mongodb_rs_name }}-0
+            -n {{ mongodb_namespace }}
+            -c mongod -- mongosh --eval '
+              db.getSiblingDB("{{ test_db }}").{{ test_collection }}.insertOne({
+                event: "pre-failover-write",
+                cluster: "{{ cluster_label }}",
+                timestamp: new Date(),
+                failover_test_id: "{{ ansible_date_time.iso8601 | default(now()) }}"
+              });
+              print("Pre-failover document count: " +
+                db.getSiblingDB("{{ test_db }}").{{ test_collection }}.countDocuments({}));
+            '
+          register: pre_write
+          changed_when: false
+
+        - name: Show pre-failover write result
+          debug:
+            msg: "{{ pre_write.stdout_lines | default([]) }}"
+      tags: [write]
+
+    # --- Phase 3: Simulate site failure ---
+    - name: "Phase 3: Simulate site failure on {{ target_cluster }}"
+      when: inventory_hostname == target_cluster
+      block:
+        - name: Cordon all worker nodes on target cluster
+          shell: |
+            for node in $({{ oc_cmd }} get nodes -l node-role.kubernetes.io/worker --no-headers -o name); do
+              {{ oc_cmd }} adm cordon "$node"
+            done
+          changed_when: true
+
+        - name: Delete MongoDB pods on target cluster to force failover
+          command: >
+            {{ oc_cmd }} delete pods -l app={{ mongodb_rs_name }}-svc
+            -n {{ mongodb_namespace }} --grace-period=0 --force
+          changed_when: true
+
+        - name: Wait for pods to be evicted
+          pause:
+            seconds: 30
+      tags: [failover]
+
+    # --- Phase 4: Verify failover and write continuity ---
+    - name: "Phase 4: Verify failover from surviving cluster"
+      when: inventory_hostname != target_cluster and cluster_role == 'primary'
+      block:
+        - name: Wait for election to complete
+          pause:
+            seconds: 45
+
+        - name: Check replica set status from surviving cluster
+          command: >
+            {{ oc_cmd }} exec {{ mongodb_rs_name }}-0
+            -n {{ mongodb_namespace }}
+            -c mongod -- mongosh --eval '
+              var status = rs.status();
+              status.members.forEach(function(m) {
+                print(m.name + " -> " + m.stateStr);
+              });
+            '
+          register: rs_after
+          changed_when: false
+          retries: 5
+          delay: 15
+          until: rs_after.rc == 0
+
+        - name: Display post-failover replica set status
+          debug:
+            msg: "{{ rs_after.stdout_lines | default([]) }}"
+
+        - name: Write post-failover document to verify write continuity
+          command: >
+            {{ oc_cmd }} exec {{ mongodb_rs_name }}-0
+            -n {{ mongodb_namespace }}
+            -c mongod -- mongosh --eval '
+              var result = db.getSiblingDB("{{ test_db }}").{{ test_collection }}.insertOne({
+                event: "post-failover-write",
+                cluster: "{{ cluster_label }}",
+                timestamp: new Date(),
+                note: "Written after {{ target_cluster }} was taken down"
+              });
+              print("Post-failover write succeeded. InsertedId: " + result.insertedId);
+              print("Total documents: " +
+                db.getSiblingDB("{{ test_db }}").{{ test_collection }}.countDocuments({}));
+            '
+          register: post_write
+          changed_when: false
+
+        - name: Display post-failover write result
+          debug:
+            msg: "{{ post_write.stdout_lines | default([]) }}"
+
+        - name: Assert post-failover write succeeded
+          assert:
+            that: post_write.rc == 0
+            fail_msg: "FAILOVER TEST FAILED: Could not write after site failure."
+            success_msg: "FAILOVER TEST PASSED: Writes continued after {{ target_cluster }} went down."
+      tags: [verify]
+
+    # --- Phase 5: Restore failed site ---
+    - name: "Phase 5: Restore {{ target_cluster }}"
+      when: inventory_hostname == target_cluster
+      block:
+        - name: Uncordon all worker nodes
+          shell: |
+            for node in $({{ oc_cmd }} get nodes -l node-role.kubernetes.io/worker --no-headers -o name); do
+              {{ oc_cmd }} adm uncordon "$node"
+            done
+          changed_when: true
+
+        - name: Wait for pods to reschedule
+          command: >
+            {{ oc_cmd }} get pods -l app={{ mongodb_rs_name }}-svc
+            -n {{ mongodb_namespace }}
+            -o jsonpath='{.items[*].status.phase}'
+          register: restored_pods
+          until: "'Running' in restored_pods.stdout"
+          retries: 30
+          delay: 15
+          changed_when: false
+
+        - name: Verify data consistency after restore
+          command: >
+            {{ oc_cmd }} exec {{ mongodb_rs_name }}-0
+            -n {{ mongodb_namespace }}
+            -c mongod -- mongosh --eval '
+              var docs = db.getSiblingDB("{{ test_db }}").{{ test_collection }}.find().sort({timestamp: -1}).limit(5);
+              while (docs.hasNext()) { printjson(docs.next()); }
+              print("Total documents after restore: " +
+                db.getSiblingDB("{{ test_db }}").{{ test_collection }}.countDocuments({}));
+            '
+          register: restore_check
+          changed_when: false
+
+        - name: Display post-restore data
+          debug:
+            msg: "{{ restore_check.stdout_lines | default([]) }}"
+      tags: [restore]
+
+    # --- Phase 6: Cleanup test data ---
+    - name: "Phase 6: Cleanup test data"
+      run_once: true
+      command: >
+        {{ oc_cmd }} exec {{ mongodb_rs_name }}-0
+        -n {{ mongodb_namespace }}
+        -c mongod -- mongosh --eval '
+          db.getSiblingDB("{{ test_db }}").dropDatabase();
+          print("Test database {{ test_db }} dropped.");
+        '
+      changed_when: false
+      tags: [cleanup]
+      when: cleanup | default(true) | bool

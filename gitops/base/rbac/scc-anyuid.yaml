@@ -1,0 +1,71 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mongodb-anyuid-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-operator-multi-cluster
+    namespace: mongodb-operator
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-operator-multi-cluster
+    namespace: mongodb-ops-manager
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-operator-multi-cluster
+    namespace: mongodb-data
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mongodb-anyuid-database
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-database-pods
+    namespace: mongodb-ops-manager
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-database-pods
+    namespace: mongodb-data
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mongodb-anyuid-appdb
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-appdb
+    namespace: mongodb-ops-manager
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-appdb
+    namespace: mongodb-data
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mongodb-anyuid-ops-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-ops-manager
+    namespace: mongodb-ops-manager

@@ -1,0 +1,76 @@
+---
+- name: Create MongoDB data namespace (all clusters)
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'namespace.yml.j2') }}"
+  changed_when: true
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['clusters'] }}"
+
+- name: Apply RBAC workaround (all clusters)
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'rbac.yml.j2') }}"
+  changed_when: true
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['clusters'] }}"
+
+- name: Create Ops Manager connection ConfigMap
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'configmap.yml.j2') }}"
+  changed_when: true
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['clusters'] }}"
+
+- name: Create Ops Manager API credentials secret
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'credentials-secret.yml.j2') }}"
+  no_log: true
+  changed_when: true
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['clusters'] }}"
+
+- name: Deploy MongoDBMultiCluster CR
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'mongodb-multicluster.yml.j2') }}"
+  changed_when: true
+
+- name: Wait for MongoDBMultiCluster to reach Running state
+  command: >
+    {{ oc_cmd }} get mongodbmulticluster {{ mongodb_rs_name }}
+    -n {{ mongodb_namespace }}
+    -o jsonpath='{.status.phase}'
+  register: rs_status
+  until: rs_status.stdout == "Running"
+  retries: "{{ (mongodb_multicluster_wait_timeout | int / poll_interval | int) | int }}"
+  delay: "{{ poll_interval }}"
+  changed_when: false
+
+- name: Get replica set member details
+  command: >
+    {{ oc_cmd }} get pods -l app={{ mongodb_rs_name }}-svc
+    -n {{ mongodb_namespace }}
+    -o custom-columns=POD:.metadata.name,NODE:.spec.nodeName,STATUS:.status.phase
+    --no-headers
+  register: rs_pods
+  changed_when: false
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['clusters'] }}"
+
+- name: MongoDB multi-cluster replica set status
+  debug:
+    msg: |
+      MongoDBMultiCluster {{ mongodb_rs_name }} is {{ rs_status.stdout }}.
+      Topology: 2+2+1 (arbiter) across {{ groups['clusters'] | length }} clusters.
+      {% for result in rs_pods.results %}
+      {{ hostvars[result.item].cluster_label }}:
+      {{ result.stdout }}
+      {% endfor %}

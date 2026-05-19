@@ -1,0 +1,6 @@
+---
+mongodb_rs_name: mongodb-multicluster-rs
+mongodb_multicluster_wait_timeout: 900
+ops_manager_configmap_name: ops-manager-connection
+ops_manager_api_secret_name: ops-manager-api-key
+ops_manager_project_name: multicluster-hadr

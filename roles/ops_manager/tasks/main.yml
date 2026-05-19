@@ -1,0 +1,72 @@
+---
+- name: Create Ops Manager namespace
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'namespace.yml.j2') }}"
+  changed_when: true
+
+- name: Apply RBAC workaround
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'rbac.yml.j2') }}"
+  changed_when: true
+
+- name: Create admin credentials secret
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'admin-secret.yml.j2') }}"
+  no_log: true
+  changed_when: true
+
+- name: Deploy Ops Manager CR (multi-cluster)
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'ops-manager.yml.j2') }}"
+  run_once: true
+  changed_when: true
+
+- name: Wait for Ops Manager to reach Running state
+  command: >
+    {{ oc_cmd }} get mongodbopsmanager {{ ops_manager_name }}
+    -n {{ ops_manager_namespace }}
+    -o jsonpath='{.status.opsManager.phase}'
+  register: om_status
+  until: om_status.stdout == "Running"
+  retries: "{{ (ops_manager_wait_timeout | int / poll_interval | int) | int }}"
+  delay: "{{ poll_interval }}"
+  changed_when: false
+  run_once: true
+
+- name: Wait for AppDB to reach Running state
+  command: >
+    {{ oc_cmd }} get mongodbopsmanager {{ ops_manager_name }}
+    -n {{ ops_manager_namespace }}
+    -o jsonpath='{.status.applicationDatabase.phase}'
+  register: appdb_status
+  until: appdb_status.stdout == "Running"
+  retries: "{{ (ops_manager_wait_timeout | int / poll_interval | int) | int }}"
+  delay: "{{ poll_interval }}"
+  changed_when: false
+  run_once: true
+
+- name: Get Ops Manager URL
+  command: >
+    {{ oc_cmd }} get mongodbopsmanager {{ ops_manager_name }}
+    -n {{ ops_manager_namespace }}
+    -o jsonpath='{.status.opsManager.url}'
+  register: om_url
+  changed_when: false
+  run_once: true
+
+- name: Ops Manager status
+  debug:
+    msg: >
+      Ops Manager is Running. URL: {{ om_url.stdout }}.
+      AppDB: {{ appdb_status.stdout }}.
+      Please create an API key via the Ops Manager UI and update the inventory
+      with ops_manager_org_id, ops_manager_public_key, and ops_manager_private_key.
+  run_once: true

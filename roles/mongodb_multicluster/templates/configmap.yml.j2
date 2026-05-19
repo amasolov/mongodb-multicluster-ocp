@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ ops_manager_configmap_name }}
+  namespace: {{ mongodb_namespace }}
+data:
+  baseUrl: "{{ ops_manager_base_url | default('FILL_AFTER_OPS_MANAGER_SETUP') }}"
+  orgId: "{{ ops_manager_org_id | default('FILL_AFTER_OPS_MANAGER_SETUP') }}"
+  projectName: "{{ ops_manager_project_name }}"

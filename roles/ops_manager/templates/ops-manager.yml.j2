@@ -1,0 +1,73 @@
+apiVersion: mongodb.com/v1
+kind: MongoDBOpsManager
+metadata:
+  name: {{ ops_manager_name }}
+  namespace: {{ ops_manager_namespace }}
+spec:
+  topology: MultiCluster
+  clusterSpecList:
+{% for host in groups['clusters'] %}
+{% if hostvars[host].ops_manager_replicas | int > 0 %}
+    - clusterName: {{ hostvars[host].cluster_label }}
+      replicas: {{ hostvars[host].ops_manager_replicas }}
+      externalConnectivity:
+        type: LoadBalancer
+      backup:
+        members: {{ hostvars[host].ops_manager_backup_members }}
+{% endif %}
+{% endfor %}
+  replicas: {{ groups['clusters'] | map('extract', hostvars, 'ops_manager_replicas') | map('int') | sum }}
+  version: "{{ ops_manager_version }}"
+  adminCredentials: {{ ops_manager_admin_secret_name }}
+  configuration:
+    mms.fromEmailAddr: "{{ ops_manager_admin_email }}"
+    mms.replyToEmailAddr: "{{ ops_manager_admin_email }}"
+    mms.adminEmailAddr: "{{ ops_manager_admin_email }}"
+    mms.mail.transport: smtp
+    mms.mail.hostname: localhost
+    mms.mail.port: "25"
+    mms.ignoreInitialUiSetup: "true"
+  statefulSet:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: mongodb-ops-manager
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 6Gi
+                limits:
+                  cpu: "2"
+                  memory: 8Gi
+  security:
+    certsSecretPrefix: {{ tls_cert_prefix }}
+    tls:
+      ca: {{ tls_ca_secret_name }}
+  applicationDatabase:
+    version: "{{ mongodb_appdb_version }}"
+    topology: MultiCluster
+    members: {{ groups['clusters'] | map('extract', hostvars, 'ops_manager_appdb_members') | map('int') | sum }}
+    clusterSpecList:
+{% for host in groups['clusters'] %}
+{% if hostvars[host].ops_manager_appdb_members | int > 0 %}
+      - clusterName: {{ hostvars[host].cluster_label }}
+        members: {{ hostvars[host].ops_manager_appdb_members }}
+{% endif %}
+{% endfor %}
+    podSpec:
+      cpu: "0.5"
+      memory: 1Gi
+      persistence:
+        single:
+          storageClass: {{ storage_class }}
+          storage: {{ ops_manager_appdb_storage_size }}
+    security:
+      certsSecretPrefix: {{ tls_cert_prefix }}
+      tls:
+        ca: {{ tls_ca_secret_name }}
+  backup:
+    enabled: true
+    headDB:
+      storageClass: {{ storage_class }}
+      storage: {{ ops_manager_backup_head_storage_size }}

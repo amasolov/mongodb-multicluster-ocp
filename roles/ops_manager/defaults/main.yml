@@ -1,0 +1,4 @@
+---
+ops_manager_name: ops-manager
+ops_manager_admin_secret_name: ops-manager-admin-secret
+ops_manager_wait_timeout: 1200

@@ -1,0 +1,34 @@
+{% for sa in rbac_service_accounts %}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ sa }}
+  namespace: {{ ops_manager_namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ sa }}
+  namespace: {{ ops_manager_namespace }}
+rules:
+{% for rule in rbac_rules %}
+  - apiGroups: {{ rule.apiGroups | to_json }}
+    resources: {{ rule.resources | to_json }}
+    verbs: {{ rule.verbs | to_json }}
+{% endfor %}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ sa }}
+  namespace: {{ ops_manager_namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ sa }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ sa }}
+    namespace: {{ ops_manager_namespace }}
+---
+{% endfor %}

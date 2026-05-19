@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-manager-connection
+  namespace: mongodb-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  baseUrl: "PLACEHOLDER"
+  orgId: "PLACEHOLDER"
+  projectName: "multicluster-hadr"

@@ -1,0 +1,113 @@
+all:
+  vars:
+    # MongoDB configuration
+    mongodb_version: "8.0.4-ent"
+    mongodb_appdb_version: "8.0.0-ubi8"
+    ops_manager_version: "8.0.21"
+    mck_operator_version: "1.8.0"
+
+    # Namespaces
+    ops_manager_namespace: mongodb-ops-manager
+    mongodb_namespace: mongodb-data
+
+    # Ops Manager admin
+    ops_manager_admin_user: admin
+    ops_manager_admin_password: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+    ops_manager_admin_first_name: Admin
+    ops_manager_admin_last_name: User
+    ops_manager_admin_email: admin@example.com
+
+    # Storage
+    storage_class: gp3-csi
+    data_storage_size: 10Gi
+    logs_storage_size: 2Gi
+    ops_manager_appdb_storage_size: 10Gi
+    ops_manager_backup_head_storage_size: 10Gi
+
+    # Resource limits (data members)
+    mongod_cpu_request: "200m"
+    mongod_cpu_limit: "1"
+    mongod_memory_request: 512Mi
+    mongod_memory_limit: 2Gi
+
+    # Ops Manager connection (populated after OM deployment)
+    ops_manager_base_url: ""
+    ops_manager_org_id: ""
+    ops_manager_public_key: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+    ops_manager_private_key: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+
+  children:
+    clusters:
+      hosts:
+        cluster1:
+          cluster_label: cluster1
+          cluster_api: https://api.cluster1.example.com:6443
+          cluster_user: kubeadmin
+          cluster_password: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          cluster_role: primary
+          mongodb_members: 2
+          mongodb_member_priority: "10"
+          external_domain: "subdomain1.example.com"
+          aws_access_key_id: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          aws_secret_access_key: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          ops_manager_replicas: 1
+          ops_manager_appdb_members: 3
+          ops_manager_backup_members: 0
+
+        cluster2:
+          cluster_label: cluster2
+          cluster_api: https://api.cluster2.example.com:6443
+          cluster_user: kubeadmin
+          cluster_password: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          cluster_role: secondary
+          mongodb_members: 2
+          mongodb_member_priority: "5"
+          external_domain: "subdomain2.example.com"
+          aws_access_key_id: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          aws_secret_access_key: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          ops_manager_replicas: 0
+          ops_manager_appdb_members: 0
+          ops_manager_backup_members: 0
+
+        cluster3:
+          cluster_label: cluster3
+          cluster_api: https://api.cluster3.example.com:6443
+          cluster_user: kubeadmin
+          cluster_password: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          cluster_role: arbiter
+          mongodb_members: 1
+          mongodb_member_priority: "0"
+          external_domain: "subdomain3.example.com"
+          aws_access_key_id: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          aws_secret_access_key: !vault |
+            $ANSIBLE_VAULT;1.1;AES256
+            REPLACE_WITH_VAULT_ENCRYPTED_VALUE
+          mongod_cpu_request: "100m"
+          mongod_memory_request: 256Mi
+          mongod_cpu_limit: "500m"
+          mongod_memory_limit: 1Gi
+          ops_manager_replicas: 0
+          ops_manager_appdb_members: 0
+          ops_manager_backup_members: 0

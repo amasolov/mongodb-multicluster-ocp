@@ -1,0 +1,33 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: mongodb-ca-issuer
+  namespace: {{ target_namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mongodb-ca
+  namespace: {{ target_namespace }}
+spec:
+  isCA: true
+  commonName: "{{ tls_ca_common_name }}"
+  secretName: {{ tls_ca_secret_name }}
+  duration: "{{ tls_ca_duration }}"
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  issuerRef:
+    name: mongodb-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: mongodb-issuer
+  namespace: {{ target_namespace }}
+spec:
+  ca:
+    secretName: {{ tls_ca_secret_name }}

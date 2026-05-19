@@ -1,0 +1,114 @@
+---
+- name: Check if cert-manager operator is installed
+  command: >
+    {{ oc_cmd }} get csv -n {{ cert_manager_namespace }}
+    -o jsonpath='{.items[0].status.phase}'
+  register: cm_check
+  changed_when: false
+  failed_when: false
+
+- name: Install cert-manager operator
+  when: cm_check.rc != 0 or cm_check.stdout != "Succeeded"
+  block:
+    - name: Create cert-manager Subscription
+      command: >
+        {{ oc_cmd }} apply -f -
+      args:
+        stdin: |
+          apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: {{ cert_manager_operator_name }}
+            namespace: {{ cert_manager_operator_name }}
+          spec:
+            channel: {{ cert_manager_channel }}
+            installPlanApproval: Automatic
+            name: {{ cert_manager_operator_name }}
+            source: {{ cert_manager_source }}
+            sourceNamespace: {{ cert_manager_source_namespace }}
+      changed_when: true
+
+    - name: Wait for cert-manager pods to be ready
+      command: >
+        {{ oc_cmd }} get deployment cert-manager
+        -n {{ cert_manager_namespace }}
+        -o jsonpath='{.status.readyReplicas}'
+      register: cm_ready
+      until: cm_ready.stdout | default('0') | int >= 1
+      retries: 40
+      delay: "{{ poll_interval }}"
+      changed_when: false
+
+- name: Create namespaces for TLS resources
+  loop:
+    - "{{ ops_manager_namespace }}"
+    - "{{ mongodb_namespace }}"
+  loop_control:
+    loop_var: ns
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: {{ ns }}
+  changed_when: true
+
+- name: Deploy CA Issuer and CA Certificate in Ops Manager namespace
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'issuer.yml.j2', template_vars=dict(target_namespace=ops_manager_namespace)) }}"
+  vars:
+    target_namespace: "{{ ops_manager_namespace }}"
+  changed_when: true
+
+- name: Deploy CA Issuer and CA Certificate in MongoDB data namespace
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'issuer.yml.j2', template_vars=dict(target_namespace=mongodb_namespace)) }}"
+  vars:
+    target_namespace: "{{ mongodb_namespace }}"
+  changed_when: true
+
+- name: Wait for CA certificates to be issued
+  loop:
+    - "{{ ops_manager_namespace }}"
+    - "{{ mongodb_namespace }}"
+  loop_control:
+    loop_var: ns
+  command: >
+    {{ oc_cmd }} get certificate mongodb-ca
+    -n {{ ns }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: ca_ready
+  until: ca_ready.stdout == "True"
+  retries: 20
+  delay: 10
+  changed_when: false
+
+- name: Issue server certificates for Ops Manager namespace
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'certificate.yml.j2', template_vars=dict(target_namespace=ops_manager_namespace, cert_name='server')) }}"
+  vars:
+    target_namespace: "{{ ops_manager_namespace }}"
+    cert_name: server
+  changed_when: true
+
+- name: Issue server certificates for MongoDB data namespace
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'certificate.yml.j2', template_vars=dict(target_namespace=mongodb_namespace, cert_name='server')) }}"
+  vars:
+    target_namespace: "{{ mongodb_namespace }}"
+    cert_name: server
+  changed_when: true
+
+- name: cert-manager status
+  debug:
+    msg: "TLS certificates deployed on {{ cluster_label }} ({{ cluster_api }})"

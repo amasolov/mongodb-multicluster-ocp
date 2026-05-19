@@ -1,0 +1,42 @@
+oc_cmd: oc
+
+wait_timeout: 600
+poll_interval: 15
+
+operator_install_namespace: mongodb-operator
+operator_catalog_source: certified-operators
+operator_catalog_namespace: openshift-marketplace
+operator_channel: stable
+
+cert_manager_namespace: cert-manager
+
+mongodb_rs_name: mongodb-rs
+mongodb_namespace: mongodb-data
+ops_manager_namespace: mongodb-ops-manager
+ops_manager_api_secret_name: ops-manager-api-key
+ops_manager_configmap_name: ops-manager-connection
+
+mongodb_version: "8.0.4-ent"
+storage_class: gp3-csi
+data_storage_size: 10Gi
+
+mongod_cpu_request: "200m"
+mongod_cpu_limit: "1"
+mongod_memory_request: 512Mi
+mongod_memory_limit: 2Gi
+
+ops_manager_wait_timeout: 1200
+
+rbac_service_accounts:
+  - mongodb-kubernetes-operator-multi-cluster
+  - mongodb-kubernetes-appdb
+  - mongodb-kubernetes-ops-manager
+  - mongodb-kubernetes-database-pods
+
+rbac_rules:
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "patch"]

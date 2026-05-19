@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-manager-connection
+  namespace: mongodb-data
+data:
+  baseUrl: "http://ops-manager-mongodb-ops-manager.apps.CLUSTER1_DOMAIN.example.com"
+  orgId: "FILL_AFTER_OPS_MANAGER_SETUP"

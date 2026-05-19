@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ops-manager
+  namespace: mongodb-ops-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  to:
+    kind: Service
+    name: ops-manager-svc
+    weight: 100
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Allow

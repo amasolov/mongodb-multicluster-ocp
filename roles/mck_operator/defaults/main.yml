@@ -1,0 +1,8 @@
+---
+mck_operator_name: mongodb-kubernetes
+mck_operator_channel: "{{ operator_channel }}"
+mck_operator_source: "{{ operator_catalog_source }}"
+mck_operator_source_namespace: "{{ operator_catalog_namespace }}"
+mck_operator_install_namespace: "{{ operator_install_namespace }}"
+mck_operator_version: "1.8.0"
+mck_operator_csv: "mongodb-kubernetes.v{{ mck_operator_version }}"

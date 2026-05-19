@@ -1,0 +1,70 @@
+---
+- name: Tear down Multi-Cluster MongoDB HA/DR
+  hosts: clusters
+  gather_facts: false
+
+  pre_tasks:
+    - name: Authenticate to cluster
+      command: >
+        {{ oc_cmd }} login {{ cluster_api }}
+        --username={{ cluster_user }}
+        --password={{ cluster_password }}
+        --insecure-skip-tls-verify=true
+      no_log: true
+      changed_when: false
+
+  tasks:
+    - name: Delete MongoDBMultiCluster CR
+      command: >
+        {{ oc_cmd }} delete mongodbmulticluster --all
+        -n {{ mongodb_namespace }} --ignore-not-found
+      run_once: true
+      changed_when: false
+
+    - name: Wait for data pods to terminate
+      command: >
+        {{ oc_cmd }} get pods -n {{ mongodb_namespace }}
+        -o jsonpath='{.items[*].metadata.name}'
+      register: data_pods
+      until: data_pods.stdout == ""
+      retries: 40
+      delay: 15
+      changed_when: false
+      ignore_errors: true
+
+    - name: Delete MongoDBOpsManager CR
+      command: >
+        {{ oc_cmd }} delete mongodbopsmanager --all
+        -n {{ ops_manager_namespace }} --ignore-not-found
+      changed_when: false
+
+    - name: Wait for Ops Manager pods to terminate
+      command: >
+        {{ oc_cmd }} get pods -n {{ ops_manager_namespace }}
+        -o jsonpath='{.items[*].metadata.name}'
+      register: om_pods
+      until: om_pods.stdout == ""
+      retries: 40
+      delay: 15
+      changed_when: false
+      ignore_errors: true
+
+    - name: Delete namespaces
+      command: >
+        {{ oc_cmd }} delete namespace {{ item }} --ignore-not-found
+      loop:
+        - "{{ mongodb_namespace }}"
+        - "{{ ops_manager_namespace }}"
+      changed_when: false
+
+    - name: Delete MCK operator subscription
+      command: >
+        {{ oc_cmd }} delete subscription mongodb-kubernetes
+        -n {{ operator_install_namespace }} --ignore-not-found
+      changed_when: false
+
+    - name: Delete MCK operator CSV
+      command: >
+        {{ oc_cmd }} delete csv mongodb-kubernetes.v{{ mck_operator_version }}
+        -n {{ operator_install_namespace }} --ignore-not-found
+      changed_when: false

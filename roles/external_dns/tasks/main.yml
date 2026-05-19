@@ -1,0 +1,36 @@
+---
+- name: Create ExternalDNS namespace
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: {{ external_dns_namespace }}
+  changed_when: true
+
+- name: Create AWS Route53 credentials secret
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'aws-secret.yml.j2') }}"
+  no_log: true
+  changed_when: true
+
+- name: Deploy ExternalDNS
+  command: >
+    {{ oc_cmd }} apply -f -
+  args:
+    stdin: "{{ lookup('template', 'external-dns.yml.j2') }}"
+  changed_when: true
+
+- name: Wait for ExternalDNS pod to be ready
+  command: >
+    {{ oc_cmd }} -n {{ external_dns_namespace }}
+    rollout status deployment/external-dns --timeout=120s
+  changed_when: false
+
+- name: ExternalDNS status
+  debug:
+    msg: "ExternalDNS deployed on {{ cluster_label }} for domain {{ external_domain }}"

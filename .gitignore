@@ -1,0 +1,9 @@
+inventory/hosts.yml
+*.vault
+*.kubeconfig
+kc[0-9]*
+secrets*.yml
+.env
+__pycache__/
+*.pyc
+*.retry

@@ -1,0 +1,137 @@
+apiVersion: mongodb.com/v1
+kind: MongoDBMultiCluster
+metadata:
+  name: mongodb-rs
+  namespace: mongodb-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  topology: MultiCluster
+  type: ReplicaSet
+  version: "8.0.4-ent"
+  persistent: true
+  duplicateServiceObjects: false
+  credentials: ops-manager-api-key
+  opsManager:
+    configMapRef:
+      name: ops-manager-connection
+  clusterSpecList:
+    - clusterName: cluster1
+      members: 2
+      memberConfig:
+        - priority: "10"
+          votes: 1
+          tags:
+            dc: cluster1
+        - priority: "10"
+          votes: 1
+          tags:
+            dc: cluster1
+      externalAccess:
+        externalDomain: "PLACEHOLDER.example.com"
+        externalService:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+            external-dns.alpha.kubernetes.io/hostname: "{mongodProcessFQDN}"
+          spec:
+            type: LoadBalancer
+      podSpec:
+        persistence:
+          single:
+            storageClass: gp3-csi
+            storage: 10Gi
+        podTemplate:
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app: mongodb-rs-svc
+                    topologyKey: kubernetes.io/hostname
+            containers:
+              - name: mongod
+                resources:
+                  requests:
+                    cpu: "200m"
+                    memory: 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: 2Gi
+    - clusterName: cluster2
+      members: 2
+      memberConfig:
+        - priority: "5"
+          votes: 1
+          tags:
+            dc: cluster2
+        - priority: "5"
+          votes: 1
+          tags:
+            dc: cluster2
+      externalAccess:
+        externalDomain: "PLACEHOLDER.example.com"
+        externalService:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+            external-dns.alpha.kubernetes.io/hostname: "{mongodProcessFQDN}"
+          spec:
+            type: LoadBalancer
+      podSpec:
+        persistence:
+          single:
+            storageClass: gp3-csi
+            storage: 10Gi
+        podTemplate:
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app: mongodb-rs-svc
+                    topologyKey: kubernetes.io/hostname
+            containers:
+              - name: mongod
+                resources:
+                  requests:
+                    cpu: "200m"
+                    memory: 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: 2Gi
+    - clusterName: cluster3
+      members: 1
+      memberConfig:
+        - priority: "0"
+          votes: 1
+          tags:
+            role: arbiter
+      externalAccess:
+        externalDomain: "PLACEHOLDER.example.com"
+        externalService:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+            external-dns.alpha.kubernetes.io/hostname: "{mongodProcessFQDN}"
+          spec:
+            type: LoadBalancer
+      podSpec:
+        persistence:
+          single:
+            storageClass: gp3-csi
+            storage: 10Gi
+        podTemplate:
+          spec:
+            containers:
+              - name: mongod
+                resources:
+                  requests:
+                    cpu: "100m"
+                    memory: 256Mi
+                  limits:
+                    cpu: "500m"
+                    memory: 1Gi
+  security:
+    authentication:
+      enabled: true
+      modes: ["SCRAM"]
