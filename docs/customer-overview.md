@@ -351,7 +351,7 @@ All cross-cluster traffic flows over the corporate WAN via LoadBalancer external
 
 ### Current PoC state
 
-In this proof of concept, Ops Manager runs as a **single instance on Cluster 1 only**. This was a deliberate simplification to focus on validating the cross-cluster data replica set. The Ops Manager multi-cluster topology (active/standby with distributed AppDB) was planned but not fully validated due to issues encountered with cross-cluster TLS trust during operator bootstrap.
+In this proof of concept, Ops Manager runs as a **single instance on Cluster 1 only**. We attempted to stretch Ops Manager across all three clusters using `spec.topology: MultiCluster` with a distributed Application Database (`spec.applicationDatabase.topology: MultiCluster`). This failed due to a bug in MCK 1.8.0 where the operator sets Kubernetes `ownerReferences` on resources it creates on remote clusters. Because the owner (`MongoDBOpsManager` CR) only exists on the central cluster, the garbage collector on each member cluster immediately deletes these resources, preventing the AppDB from forming across clusters. This has been reported upstream as [mongodb/mongodb-kubernetes#1119](https://github.com/mongodb/mongodb-kubernetes/issues/1119).
 
 ### Impact if Cluster 1 is lost
 
@@ -372,7 +372,7 @@ For production, Ops Manager should be deployed in multi-cluster mode:
 - **Application Database** spread 1+1+1 across all three sites
 - **Backup daemons** on both DC1 and DC2
 
-This ensures the management plane remains available even during a full site failure. The MCK operator supports this topology via the `MongoDBOpsManager` CR with `topology: MultiCluster`. The Ansible roles in the repository already contain templates for this configuration, though it was not end-to-end validated in the PoC.
+This ensures the management plane remains available even during a full site failure. The MCK operator supports this topology via the `MongoDBOpsManager` CR with `topology: MultiCluster`. However, a bug in the current operator version (MCK 1.8.0) prevents this from working ([mongodb/mongodb-kubernetes#1119](https://github.com/mongodb/mongodb-kubernetes/issues/1119)). Once the upstream fix is available, the Kustomize manifests in the repository can be updated to enable multi-cluster Ops Manager.
 
 **References:**
 - [Ops Manager Resource Specification](https://www.mongodb.com/docs/kubernetes/current/reference/k8s-operator-om-specification/)
@@ -393,6 +393,7 @@ These were discovered during the PoC and are documented as issues to be aware of
 | 5 | OpenShift `restricted` SCC blocks MongoDB pods (they require specific UIDs) | Grant `anyuid` SCC to MongoDB ServiceAccounts | Bootstrap script provided (`04-grant-scc.sh`). [OpenShift SCC docs](https://docs.openshift.com/container-platform/latest/authentication/managing-security-context-constraints.html) |
 | 6 | Agents on member clusters cannot reach Ops Manager via cluster-local service names | Expose Ops Manager via an OpenShift Route; configure agents to use the external URL | Route manifest and ConfigMap included |
 | 7 | Multi-cluster MCK operator not available via OLM/OperatorHub | Install via Helm | Bootstrap script provided (`02-helm-install-mck-operator.sh`) |
+| 8 | Multi-cluster Ops Manager (`topology: MultiCluster`) AppDB StatefulSets are garbage-collected on member clusters due to cross-cluster `ownerReferences` (MCK 1.8.0 bug) | Keep Ops Manager as a single-cluster deployment until the upstream fix is released | Reported as [mongodb/mongodb-kubernetes#1119](https://github.com/mongodb/mongodb-kubernetes/issues/1119) |
 
 **References:**
 - [MCK Multi-Cluster Troubleshooting](https://www.mongodb.com/docs/kubernetes/current/reference-architectures/multi-cluster/multi-cluster-troubleshooting/)
